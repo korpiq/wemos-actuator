@@ -2,11 +2,15 @@
 
 configuration_t configuration = {
     (char *) "",
+    (char *) "",
+    (char *) "",
     false
 };
 
 const char * config_filename = "settings.json";
 const char * mqtt_server_url_name = "mqtt_server_url";
+const char * wifi_name_name = "wifi_name";
+const char * wifi_password_name = "wifi_password";
 
 WiFiManager wifiManager;
 bool pleaseSaveConfig = false;
@@ -64,6 +68,8 @@ void serializeConfiguration (const configuration_t * configuration, char * buffe
     DynamicJsonBuffer json_buffer;
     JsonObject& json = json_buffer.createObject();
     json[mqtt_server_url_name] = configuration->mqtt_server_url;
+    json[wifi_name_name] = configuration->wifi_name;
+    json[wifi_password_name] = configuration->wifi_password;
 
     json.printTo(buffer, bufsiz);
 }
@@ -78,8 +84,23 @@ void deserializeConfiguration(configuration_t * configuration, const char * json
     configuration->configured = jsonObject.success();
     if (configuration->configured)
     {
-        configuration->mqtt_server_url =
-            copy_string_realloc_when_longer(configuration->mqtt_server_url, jsonObject[mqtt_server_url_name], PARAM_LEN);
+        if (jsonObject.containsKey(mqtt_server_url_name))
+        {
+          configuration->mqtt_server_url =
+              copy_string_realloc_when_longer(configuration->mqtt_server_url, jsonObject[mqtt_server_url_name], PARAM_LEN);
+        }
+
+        if (jsonObject.containsKey(wifi_name_name))
+        {
+          configuration->wifi_name =
+              copy_string_realloc_when_longer(configuration->wifi_name, jsonObject[wifi_name_name], PARAM_LEN);
+        }
+
+        if (jsonObject.containsKey(wifi_password_name))
+        {
+          configuration->wifi_password =
+              copy_string_realloc_when_longer(configuration->wifi_password, jsonObject[wifi_password_name], PARAM_LEN);
+        }
         log("Configuration ok:", json);
     }
     else
@@ -176,6 +197,20 @@ void reconfigure(configuration_t * configuration, const char * json)
     if (configuration->configured)
     {
         saveConfiguration(configuration);
+        if (configuration->wifi_name) {
+            Serial.print("Connecting to ");
+            Serial.print(configuration->wifi_name);
+            WiFi.mode(WIFI_STA);
+            WiFi.begin(configuration->wifi_name, configuration->wifi_password);        
+            while (WiFi.status() != WL_CONNECTED) {
+              delay(500);
+              Serial.print(".");
+            }
+          
+            Serial.println("");
+            Serial.print("WiFi connected with IP address: ");
+            Serial.println(WiFi.localIP());
+        }
     }
     else
     {

@@ -8,6 +8,8 @@
 #pragma once
 
 typedef struct configuration {
+    char * wifi_name;
+    char * wifi_password;
     char * mqtt_server_url;
     bool configured;
 } configuration_t;
