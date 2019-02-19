@@ -1,12 +1,12 @@
-# chirp_wemos_azure
+# wemos-actuator
 
-Software for a plant status reporting device.
+Software for a remote controllable actuator.
 
 [![Sponsored](https://img.shields.io/badge/chilicorn-sponsored-brightgreen.svg)](http://spiceprogram.org/oss-sponsorship/)
 
 ## Development Setup
 
-Setup to compile software to run on a Wemos D1 Mini board to send Chirp sensor metrics to Azure IoT hub.
+Setup to compile software to run on a Wemos D1 Mini board to control any electric device with a relay.
 
 ### On MacOS
 
@@ -29,6 +29,8 @@ Script `setup/macos.sh` contains commands to install everything necessary to bui
 
 You can listen in on the serial port for debug messages.
 
-- Send a one-letter message to get configuration report.
-- Send a JSON object to update configuration
-  - "mqtt_server_url": an unused string for now
+- Send a one-letter message to activate the device for a short time.
+- Send a JSON object to update configuration. Each of the following fields is optional:
+  - "mqtt_server_url": IotHub connection string
+  - "wifi_name": new name for the wifi to connect
+  - "wifi_password": password for the above.
