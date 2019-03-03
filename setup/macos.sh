@@ -53,6 +53,14 @@ install_usb_driver () {
     ensure_brew cask install homebrew/cask-drivers/silicon-labs-vcp-driver
 }
 
+test_libomp () {
+    test -f /usr/local/include/omp.h
+}
+
+install_libomp () {
+    ensure_brew install libomp
+}
+
 find_library () {
     for FILE in "$ARDUINO_LIBDIR"/*/library.properties
     do
@@ -134,5 +142,6 @@ ensure_installed \
     "Arduino for compiling and installing the program" \
     "ESP8266 Core for Arduino to build for target hardware" \
     "usb_driver to connect to target hardware" \
+    "libomp required by many libraries" \
     "libraries that provide features for the program" \
     "device_filesystem_browser tool for Arduino IDE"
