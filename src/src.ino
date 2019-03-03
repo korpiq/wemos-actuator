@@ -1,6 +1,7 @@
 #include "Arduino.h"
 #include "Configuration.h"
 #include "IotHub.h"
+#include "WebServer.h"
 
 extern "C" {
 #include "user_interface.h"
@@ -89,6 +90,7 @@ void setup ()
     blink(10, 100, 100);
 
     startIotHub();
+    startWebServer();
 
     serialBegun = true;
 }
@@ -166,6 +168,7 @@ void loop ()
             Serial.println(result);
         }
     }
+    webServerStep();
 
     blink(1, 500, 500);
 }
