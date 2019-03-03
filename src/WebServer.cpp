@@ -8,6 +8,7 @@ void webRequest() {
 
 void startWebServer() {
     server.on("/", webRequest);
+    server.begin();
 }
 
 void webServerStep() {
