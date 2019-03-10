@@ -4,16 +4,42 @@ configuration_t configuration = {
     (char *) "",
     (char *) "",
     (char *) "",
-    false
+    10000,
+    0
 };
 
 const char * config_filename = "settings.json";
 const char * mqtt_server_url_name = "mqtt_server_url";
 const char * wifi_name_name = "wifi_name";
 const char * wifi_password_name = "wifi_password";
+const char * run_duration_ms_name = "run_duration_ms";
 
-WiFiManager wifiManager;
-bool pleaseSaveConfig = false;
+const char * configuration_parameter_names [] = {
+    wifi_name_name,
+    wifi_password_name,
+    mqtt_server_url_name,
+    run_duration_ms_name,
+    NULL
+};
+
+enum configuration_parameter_index {
+    WIFI_NAME,
+    WIFI_PASSWORD,
+    MQTT_SERVER_URL,
+    DEFAULT_RUN_MILLISECONDS
+};
+
+enum configuration_parameter_type {
+    TYPE_TEXT,
+    TYPE_ULONG
+};
+
+const configuration_parameter_type configuration_parameter_types [] = {
+    TYPE_TEXT,
+    TYPE_TEXT,
+    TYPE_TEXT,
+    TYPE_ULONG
+};
 
 template <typename Arg>
 void log_append(Arg message)
@@ -31,7 +57,7 @@ void log_append(Arg message, Args... message_parts)
 }
 
 template <typename... Args>
-void log(Args... message_parts)
+void write_log(Args... message_parts)
 {
     Serial.printf("[%04lu]", millis()/1000);
     log_append(message_parts...);
@@ -39,9 +65,36 @@ void log(Args... message_parts)
     Serial.flush();
 }
 
-void saveConfigCallback ()
+int getParameterNameIndex(const char * name)
 {
-    pleaseSaveConfig = true;
+    for (int i = 0; configuration_parameter_names[i]; i++)
+    {
+        if (! strncmp(name, configuration_parameter_names[i], PARAM_NAME_LEN))
+        {
+            return i;
+        }
+    }
+    return -1;
+}
+
+char ** accessTextParameterByIndex(configuration_t * configuration, int index)
+{
+    switch (index)
+    {
+        case WIFI_NAME:         return &configuration->wifi_name;
+        case WIFI_PASSWORD:     return &configuration->wifi_password;
+        case MQTT_SERVER_URL:   return &configuration->mqtt_server_url;
+        default:                return NULL;
+    }
+}
+
+unsigned long * accessULongParameterByIndex(configuration_t * configuration, int index)
+{
+    switch (index)
+    {
+        case DEFAULT_RUN_MILLISECONDS: return &configuration->run_duration_ms;
+        default: return NULL;
+    }
 }
 
 char * copy_string_realloc_when_longer(char * target, const char * source, size_t max_length)
@@ -63,49 +116,100 @@ char * copy_string_realloc_when_longer(char * target, const char * source, size_
     return target;
 }
 
-void serializeConfiguration (const configuration_t * configuration, char * buffer, size_t bufsiz)
+bool setTextParameterByIndex(configuration_t * configuration, int parameterIndex, const char * value)
+{
+    char ** textParameter = accessTextParameterByIndex(configuration, parameterIndex);
+    if (textParameter)
+    {
+        *textParameter = copy_string_realloc_when_longer(*textParameter, value, PARAM_LEN);
+        configuration->configured = millis();
+        return true;
+    }
+
+    return false;
+}
+
+bool setULongParameterByIndex(configuration_t * configuration, int parameterIndex, const char * value)
+{
+    unsigned long * parameter = accessULongParameterByIndex(configuration, parameterIndex);
+    if (parameter)
+    {
+        sscanf(value, "%lu", parameter);
+        configuration->configured = millis();
+        return true;
+    }
+
+    return false;
+}
+
+bool setConfigurationParameterByName(configuration_t * configuration, const char * name, const char * value)
+{
+    int parameterIndex = getParameterNameIndex(name);
+    if (parameterIndex >= 0)
+    {
+        write_log("set", name, value);
+        switch (configuration_parameter_types[parameterIndex])
+        {
+            case TYPE_TEXT: return setTextParameterByIndex(configuration, parameterIndex, value);
+            case TYPE_ULONG: return setULongParameterByIndex(configuration, parameterIndex, value);
+        }
+    }
+
+    write_log("Failed to set unknown parameter:", name);
+
+    return false;
+}
+
+
+WiFiManager wifiManager;
+bool pleaseSaveConfig = false;
+
+void saveConfigCallback ()
+{
+    pleaseSaveConfig = true;
+}
+
+void serializeConfiguration (configuration_t * configuration, char * buffer, size_t bufsiz)
 {
     DynamicJsonBuffer json_buffer;
     JsonObject& json = json_buffer.createObject();
-    json[mqtt_server_url_name] = configuration->mqtt_server_url;
-    json[wifi_name_name] = configuration->wifi_name;
-    json[wifi_password_name] = configuration->wifi_password;
+    const char * name;
+
+    for (int i = 0; (name = configuration_parameter_names[i]) != NULL; i++)
+    {
+        switch (configuration_parameter_types[i])
+        {
+            case TYPE_TEXT:
+                json[name] = *accessTextParameterByIndex(configuration, i);
+                break;
+            case TYPE_ULONG:
+                json[name] = *accessULongParameterByIndex(configuration, i);
+                break;
+        }
+        write_log("Serialized", name, (const char *)json[name]);
+    }
 
     json.printTo(buffer, bufsiz);
 }
 
 void deserializeConfiguration(configuration_t * configuration, const char * json)
 {
-    log("Reading new configuration:", json);
+    write_log("Reading new configuration:", json);
 
     DynamicJsonBuffer json_buffer;
     JsonObject &jsonObject = json_buffer.parseObject(json);
 
-    configuration->configured = jsonObject.success();
-    if (configuration->configured)
+    if (jsonObject.success())
     {
-        if (jsonObject.containsKey(mqtt_server_url_name))
+        for (const auto& item : jsonObject)
         {
-          configuration->mqtt_server_url =
-              copy_string_realloc_when_longer(configuration->mqtt_server_url, jsonObject[mqtt_server_url_name], PARAM_LEN);
+            setConfigurationParameterByName(configuration, item.key, item.value);
         }
-
-        if (jsonObject.containsKey(wifi_name_name))
-        {
-          configuration->wifi_name =
-              copy_string_realloc_when_longer(configuration->wifi_name, jsonObject[wifi_name_name], PARAM_LEN);
-        }
-
-        if (jsonObject.containsKey(wifi_password_name))
-        {
-          configuration->wifi_password =
-              copy_string_realloc_when_longer(configuration->wifi_password, jsonObject[wifi_password_name], PARAM_LEN);
-        }
-        log("Configuration ok:", json);
+        write_log("Configuration ok:", json);
     }
     else
     {
-        log("Failed to parse:", json);
+        write_log("Failed to parse:", json);
     }
 }
 
@@ -113,7 +217,7 @@ void saveConfiguration (configuration_t * configuration)
 {
     char buffer[CONFIG_SIZE];
     serializeConfiguration(configuration, buffer, CONFIG_SIZE);
-    log("Saving configuration:", buffer);
+    write_log("Saving configuration:", buffer);
 
     File f = SPIFFS.open(config_filename, "w");
     for (int i=0; i < CONFIG_SIZE && buffer[i]; ++i)
@@ -122,29 +226,29 @@ void saveConfiguration (configuration_t * configuration)
     }
     f.close();
 
-    log("Saved to file:", config_filename);
+    write_log("Saved to file:", config_filename);
 }
 
 void loadConfiguration (configuration_t * configuration)
 {
     char config_string[CONFIG_SIZE];
-    log("Load configuration from file", config_filename);
+    write_log("Load configuration from file", config_filename);
 
     if (SPIFFS.exists(config_filename))
     {
         File f = SPIFFS.open(config_filename, "r");
-        log("Reading file:", config_filename);
+        write_log("Reading file:", config_filename);
 
         int config_string_length = f.readBytes(config_string, CONFIG_SIZE);
         f.close();
         config_string[config_string_length] = '\0';
-        log("Read configuration:", config_string);
+        write_log("Read configuration:", config_string);
 
         deserializeConfiguration(configuration, config_string);
     }
     else
     {
-        log("Configuration file does not exist.");
+        write_log("Configuration file does not exist.");
     }
 }
 
@@ -154,36 +258,36 @@ void setupWifi (configuration_t * configuration, const char * setup_wlan_name)
     wifiManager.addParameter(&mqtt_server_parameter);
     wifiManager.setSaveConfigCallback(saveConfigCallback);
 
-    log("Wifi setup starting with fallback WLAN:", setup_wlan_name);
+    write_log("Wifi setup starting with fallback WLAN:", setup_wlan_name);
 
     wifiManager.autoConnect(setup_wlan_name);
 
     if (pleaseSaveConfig)
     {
-        log("Saving configuration given over setup WLAN");
+        write_log("Saving configuration given over setup WLAN");
         configuration->mqtt_server_url =
             copy_string_realloc_when_longer(configuration->mqtt_server_url, mqtt_server_parameter.getValue(), PARAM_LEN);
-        configuration->configured = true;
+        configuration->configured = millis();
 
         saveConfiguration(configuration);
     }
 
-    log("Wifi setup done");
+    write_log("Wifi setup done");
 }
 
 void setupConfiguration (configuration_t * configuration, const char * setup_wlan_name)
 {
-    log("Mounting filesystem");
+    write_log("Mounting filesystem");
 
     if (SPIFFS.begin())
     {
-        log("Filesystem mounted");
+        write_log("Filesystem mounted");
 
         loadConfiguration(configuration);
     }
     else
     {
-        log("Formatting new filesystem");
+        write_log("Formatting new filesystem");
 
         SPIFFS.format();
     }
@@ -191,30 +295,37 @@ void setupConfiguration (configuration_t * configuration, const char * setup_wla
     setupWifi(configuration, setup_wlan_name);
 }
 
+void saveUpdatedConfiguration(configuration_t * configuration)
+{
+    saveConfiguration(configuration);
+
+    if (configuration->wifi_name && *configuration->wifi_name) {
+        Serial.print("Connecting to WiFi network: ");
+        Serial.print(configuration->wifi_name);
+
+        WiFi.mode(WIFI_STA);
+        WiFi.begin(configuration->wifi_name, configuration->wifi_password);        
+        while (WiFi.status() != WL_CONNECTED) {
+            delay(500);
+            Serial.print(".");
+        }
+        
+        Serial.println("");
+        write_log("WiFi connected with IP address:", WiFi.localIP());
+    }
+}
+
 void reconfigure(configuration_t * configuration, const char * json)
 {
+    unsigned long last_configured = configuration->configured;
     deserializeConfiguration(configuration, json);
-    if (configuration->configured)
+    if (configuration->configured != last_configured)
     {
-        saveConfiguration(configuration);
-        if (configuration->wifi_name) {
-            Serial.print("Connecting to ");
-            Serial.print(configuration->wifi_name);
-            WiFi.mode(WIFI_STA);
-            WiFi.begin(configuration->wifi_name, configuration->wifi_password);        
-            while (WiFi.status() != WL_CONNECTED) {
-              delay(500);
-              Serial.print(".");
-            }
-          
-            Serial.println("");
-            Serial.print("WiFi connected with IP address: ");
-            Serial.println(WiFi.localIP());
-        }
+        saveUpdatedConfiguration(configuration);
     }
     else
     {
-        log("Configuration failed, not saved.");
+        write_log("Configuration failed, not saved.");
     }
 }
 

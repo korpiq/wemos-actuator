@@ -13,7 +13,8 @@ extern "C" {
 bool serialBegun = false;
 bool led_state = false;
 bool iotHubStarted = false;
-unsigned long actuatorRunningSince = 0;
+unsigned long actuatorRunningUntil = 0;
+unsigned long configurationSaved = 0;
 
 void blink (uint8_t times, uint16_t hi, uint16_t lo)
 {
@@ -34,12 +35,13 @@ void report_memory()
     Serial.flush();
 }
 
-bool callDeviceMethod(const char * methodName) {
+bool callDeviceMethod(const char * methodName)
+{
     Serial.printf("Try to invoke method %s.\r\n", methodName);
 
     if (strncmp(methodName, "start", 6) == 0)
     {
-        start();
+        start(configuration.run_duration_ms);
         return true;
     }
     else if (strncmp(methodName, "stop", 5) == 0)
@@ -52,17 +54,19 @@ bool callDeviceMethod(const char * methodName) {
     return false;
 }
 
-void start() {
+void start(unsigned long run_for_milliseconds)
+{
     digitalWrite(ACTUATOR_PIN, HIGH);
-    actuatorRunningSince = millis();
+    actuatorRunningUntil = millis() + run_for_milliseconds;
 
     Serial.println("Actuator started.");
     Serial.flush();
 }
 
-void stop() {
+void stop()
+{
     digitalWrite(ACTUATOR_PIN, LOW);
-    actuatorRunningSince = 0;
+    actuatorRunningUntil = 0;
 
     Serial.println("Actuator stopped.");
     Serial.flush();
@@ -82,6 +86,7 @@ void setup ()
     report_memory();
 
     setupConfiguration(&configuration, "DEVICE_SETUP");
+    configurationSaved = configuration.configured;
 
     Serial.println("Configured.");
     reportConfiguration(&configuration);
@@ -89,14 +94,15 @@ void setup ()
 
     blink(10, 100, 100);
 
-    startIotHub();
+    // startIotHub();
     startWebServer();
 
     serialBegun = true;
 }
 
 void startIotHub() {
-    if (configuration.configured && !iotHubStarted) {
+    if (configuration.configured && !iotHubStarted)
+    {
         Serial.println("Connecting to IotHub");
         setupIotHub(configuration.mqtt_server_url);
         iotHubStarted = true;
@@ -107,10 +113,18 @@ void startIotHub() {
 
 void loop ()
 {
-    if (actuatorRunningSince > 0) {
-        if (actuatorRunningSince < millis() + 12000ul) {
+    if (actuatorRunningUntil > 0)
+    {
+        if (actuatorRunningUntil < millis())
+        {
             stop();
         }
+    }
+
+    if (configurationSaved != configuration.configured)
+    {
+        saveUpdatedConfiguration(&configuration);
+        configurationSaved = configuration.configured;
     }
 
     if (Serial != serialBegun)
@@ -150,7 +164,7 @@ void loop ()
             }
             else
             {
-                start();
+                start(configuration.run_duration_ms);
             }
 
             reportConfiguration(&configuration);
@@ -170,5 +184,6 @@ void loop ()
     }
     webServerStep();
 
-    blink(1, 500, 500);
+    digitalWrite(LED, (led_state = !led_state) ? HIGH : LOW);
+    delay(500);
 }

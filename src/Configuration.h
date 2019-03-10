@@ -11,16 +11,19 @@ typedef struct configuration {
     char * wifi_name;
     char * wifi_password;
     char * mqtt_server_url;
-    bool configured;
+    unsigned long run_duration_ms;
+    unsigned long configured;
 } configuration_t;
 
 extern configuration_t configuration;
 
 void setupConfiguration (configuration_t * configuration, const char * setup_wlan_name);
 void reconfigure(configuration_t * configuration, const char * json);
+void saveUpdatedConfiguration(configuration_t * configuration);
 void reportConfiguration (configuration_t * configuration);
+bool setConfigurationParameterByName(configuration_t * configuration, const char * name, const char * value);
 
 #define PARAM_LEN 200
 #define PARAM_NAME_LEN 20
-#define NUM_PARAMS 1
+#define NUM_PARAMS 4
 #define CONFIG_SIZE (PARAM_LEN + PARAM_NAME_LEN + 6) * NUM_PARAMS

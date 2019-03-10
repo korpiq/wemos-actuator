@@ -27,10 +27,21 @@ Script `setup/macos.sh` contains commands to install everything necessary to bui
 
 ## Usage
 
+### Via USB
+
 You can listen in on the serial port for debug messages.
 
-- Send a one-letter message to activate the device for a short time.
+- Send a one-letter message to activate the device for duration of `default_run_milliseconds`.
 - Send a JSON object to update configuration. Each of the following fields is optional:
+  - "wifi_name": name (SSID) of wifi network to connect to
+  - "wifi_password": password for the above
   - "mqtt_server_url": IotHub connection string
-  - "wifi_name": new name for the wifi to connect
-  - "wifi_password": password for the above.
+  - "run_duration_ms": how many milliseconds to run the motor when started.
+
+### Via Wifi
+
+Via browser you can
+- run the actuator for a specified number of seconds
+- configure the same settings as above.
+
+The only difficulty is to get the IP address of the device to connect to.
