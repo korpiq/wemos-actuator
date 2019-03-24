@@ -74,11 +74,12 @@ void setupIotHub(const char * mqtt_server_url) {
 }
 
 const char * talkWithIotHub(const char * message) {
+    const char * result = NULL;
     if (message) {
-        return sendMessage(iotHubClientHandle, message);
+        result = sendMessage(iotHubClientHandle, message);
     }
 
     IoTHubClient_LL_DoWork(iotHubClientHandle);
-    return NULL;
+    return result;
 }
 
