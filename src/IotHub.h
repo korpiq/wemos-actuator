@@ -1,6 +1,6 @@
 
 // provided by IotHub implementation
-extern void setupIotHub(const char * mqtt_server_url);
+extern const char * setupIotHub(const char * mqtt_server_url); // returns error message or null on success
 extern const char * talkWithIotHub(const char * message); // returns error message or null on success
 
 // provided by main app

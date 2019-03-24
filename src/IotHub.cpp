@@ -65,12 +65,19 @@ void twinCallback(
     callDeviceMethod("start");
 }
 
-void setupIotHub(const char * mqtt_server_url) {
+const char * setupIotHub(const char * mqtt_server_url) {
     iotHubClientHandle = IoTHubClient_LL_CreateFromConnectionString(mqtt_server_url, MQTT_Protocol);
+    if (iotHubClientHandle == NULL)
+    {
+        return "Failed to connect to IoTHub";
+    }
+
     IoTHubClient_LL_SetOption(iotHubClientHandle, "product_info", "wemos-actuator");
     IoTHubClient_LL_SetMessageCallback(iotHubClientHandle, receiveMessageCallback, NULL);
     IoTHubClient_LL_SetDeviceMethodCallback(iotHubClientHandle, deviceMethodCallback, NULL);
     IoTHubClient_LL_SetDeviceTwinCallback(iotHubClientHandle, twinCallback, NULL);
+
+    return NULL;
 }
 
 const char * talkWithIotHub(const char * message) {

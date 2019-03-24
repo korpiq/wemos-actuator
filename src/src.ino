@@ -101,11 +101,22 @@ void setup ()
 }
 
 void startIotHub() {
-    if (configuration.configured && !iotHubStarted)
+    iotHubStarted = false;
+
+    if (configuration.configured)
     {
-        Serial.println("Connecting to IotHub");
-        setupIotHub(configuration.mqtt_server_url);
-        iotHubStarted = true;
+        Serial.print("Connecting to IotHub: ");
+        Serial.println(configuration.mqtt_server_url);
+
+        const char * result = setupIotHub(configuration.mqtt_server_url);
+        if (result == NULL)
+        {
+            iotHubStarted = true;
+        }
+        else
+        {
+            Serial.println(result);
+        }
     } else {
         Serial.println("Not connecting to IotHub at this time");
     }
